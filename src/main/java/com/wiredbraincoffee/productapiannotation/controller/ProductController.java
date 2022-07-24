@@ -28,11 +28,24 @@ public class ProductController {
         return repository.findAll();
     }
 
+    //http://localhost:8080/products/priceGreaterThan?priceGreaterThan=2
+    @GetMapping("priceGreaterThan")
+    public Flux<Product> getAllProductsWithPrice(@RequestParam(required = false) Double priceGreaterThan) {
+        return repository.findAll().filter(product -> product.getPrice().compareTo(priceGreaterThan) > 0);//.map(x -> ResponseEntity.ok(x));
+    }
+
     //curl -v http://localhost:8080/products/62dd58f4c12d0e0cf6c05615
     @GetMapping("{id}")
     public Mono<ResponseEntity<Product>> getProduct(@PathVariable String id) {
         return repository.findById(id).
-                map(product -> ResponseEntity.ok(product)).defaultIfEmpty(ResponseEntity.notFound().build());
+                map(product -> ResponseEntity.ok(product)).//defaultIfEmpty(ResponseEntity.notFound().build());
+                        switchIfEmpty(Mono.error(
+                        new RuntimeException("Not found")))
+                .doFirst(() -> System.out.println("Product id:" + id))
+                .doOnNext(product -> System.out.println("Found:" + product))
+                .doOnError(ex -> System.out.println("Something wrong>>>" + ex))
+                .doOnTerminate(() -> System.out.println("Finalized"))
+                .doFinally(signal -> System.out.println("Finalized with signal:" + signal));
     }
 
     //curl -v -H "Content-Type: application/json" -d "{ \"name\":\"black tea\",\"price\":1.99}"  http://localhost:8080/products/
@@ -66,6 +79,7 @@ public class ProductController {
     public Mono<Void> deleteAllProducts() {
         return repository.deleteAll();
     }
+
     //curl http://localhost:8080/products/events
     @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ProductEvent> getProductEvents() {
